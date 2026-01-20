@@ -19,6 +19,8 @@ export class SlackService {
       socketMode: useSocketMode,
       appToken: useSocketMode ? env.SLACK_APP_TOKEN : undefined,
       logLevel: LogLevel.INFO,
+      // Matches the Vercel function path
+      endpoints: isVercel ? "/api/events" : undefined,
     });
 
     if (isVercel) {

@@ -1,42 +1,51 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { slackService } from '../src/services/slack.js';
 
-// Handle Slack URL Verification and Events
+// IMPORTANT: Import index.js to register events
+import '../src/index.js';
+
+/**
+ * Vercel Serverless Function to handle Slack Events
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Only allow POST requests
     if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
+        return res.status(405).send('Method Not Allowed');
+    }
+
+    // Handle URL Verification
+    if (req.body && req.body.type === 'url_verification') {
+        return res.status(200).json({ challenge: req.body.challenge });
     }
 
     try {
-        const body = req.body;
+        const app = slackService.getApp();
+        const receiver = (app as any).receiver;
 
-        // Handle Slack URL Verification Challenge
-        if (body && body.type === 'url_verification') {
-            console.log('Slack URL Verification received');
-            res.status(200).json({ challenge: body.challenge });
-            return;
+        // In Vercel, we use the receiver's requestListener directly.
+        // However, Bolt's HTTPReceiver expects the path to match.
+        // We already updated SlackService to set endpoints to /api/events.
+
+        // We proxy the request to Bolt's internal request listener
+        const requestListener = receiver.requestListener || receiver.requestHandler;
+
+        if (requestListener) {
+            return requestListener(req, res);
         }
 
-        // For actual events, we need to import and initialize the app
-        // Lazy load to avoid initialization issues
-        const { slackService } = await import('../src/services/slack.js');
-
-        // Initialize event handlers
-        await import('../src/index.js');
-
-        // Use Bolt's receiver to handle the event
-        const receiver = (slackService.getApp() as any).receiver;
-
-        if (receiver && receiver.requestListener) {
-            // Let Bolt handle the request
-            receiver.requestListener(req, res);
-        } else {
-            // Fallback: acknowledge the event
-            res.status(200).json({ ok: true });
-        }
+        // Fallback if requestListener is not available
+        await receiver.processEvent({
+            body: req.body,
+            headers: req.headers,
+            ack: async (response: any) => {
+                if (!res.writableEnded) {
+                    res.status(200).send(response || '');
+                }
+            },
+        });
     } catch (error) {
-        console.error('Error handling Vercel request:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Error in Slack Event Handler:', error);
+        if (!res.writableEnded) {
+            res.status(500).send('Internal Server Error');
+        }
     }
 }
