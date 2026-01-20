@@ -16,6 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).send('Method Not Allowed');
     }
 
+    // Ignore Slack Retries to prevent duplicate processing (Serverless)
+    if (req.headers['x-slack-retry-num']) {
+        console.log(`DEBUG: Ignoring Slack retry #${req.headers['x-slack-retry-num']}`);
+        return res.status(200).send();
+    }
+
     try {
         if (!initialized) {
             console.log("DEBUG: Initializing App in Vercel handler...");
