@@ -27,6 +27,7 @@ export class GeminiService {
       model: this.modelName,
     });
 
+    const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
     const prompt = `Analyze the following thought/task and extract structured information. Return ONLY a valid JSON object with no additional text, comments, or markdown formatting. The JSON must match this exact structure:
 
 {
@@ -40,6 +41,12 @@ export class GeminiService {
   "target_task_title": "If intent is update_task, extract the name of the task being referenced. If new_task or query, null",
   "search_query": "If intent is query, extract the topic/keywords to search for. If others, null"
 }
+
+IMPORTANT - DATE CONTEXT:
+Today is: ${now} (Asia/Bangkok)
+When the user says "today", use this date.
+When the user says "tomorrow", use the day after this date.
+When the user says "next Monday", calculate based on this date.
 
 IMPORTANT - Intent Detection Rules:
 - "query": User is asking a question about existing tasks, requesting a list, or checking status. Keywords: "What", "Show", "List", "Do I have", "How many", "search".
@@ -214,6 +221,7 @@ ${tasksText}`;
       ? `Original task: "${originalTask.title}"\nSummary: ${originalTask.summary}\nStatus: ${originalTask.status}\n\n`
       : "";
 
+    const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
     const prompt = `Given this task update/reply from the user, determine what action they're taking. Return JSON:
  
  {
@@ -225,6 +233,10 @@ ${tasksText}`;
    },
    "thought_signature": "Updated signature if provided, otherwise empty string"
  }
+
+IMPORTANT - DATE CONTEXT:
+Today is: ${now} (Asia/Bangkok)
+When the user mentions or implies dates (e.g. "tomorrow", "next week"), calculate based on this today's date.
  
  ${taskContext}User reply: "${reply}"`;
 
