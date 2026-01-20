@@ -10,21 +10,28 @@
     "dev": "tsx watch src/index.ts",
     "type-check": "tsc --noEmit"
   },
-  "keywords": ["slack", "gemini", "notion", "ai", "second-brain"],
+  "keywords": [
+    "slack",
+    "gemini",
+    "notion",
+    "ai",
+    "second-brain"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@slack/bolt": "^4.0.2",
-    "@notionhq/client": "^2.2.15",
     "@google/generative-ai": "^0.21.0",
-    "node-cron": "^3.0.3",
+    "@notionhq/client": "^2.2.15",
+    "@slack/bolt": "^4.0.2",
     "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",
     "@types/node-cron": "^3.0.11",
-    "typescript": "^5.5.4",
-    "tsx": "^4.16.2"
+    "@vercel/node": "^5.5.24",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
   }
 }

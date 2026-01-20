@@ -8,13 +8,24 @@ export class SlackService {
   constructor() {
     const env = getEnv();
 
+    // Check if running on Vercel or explicitly disabled socket mode
+    const isVercel = process.env.VERCEL === "1";
+    const useSocketMode = !isVercel;
+
     this.app = new App({
       token: env.SLACK_BOT_TOKEN,
-      appToken: env.SLACK_APP_TOKEN,
-      socketMode: true,
-      logLevel: LogLevel.INFO,
       signingSecret: env.SLACK_SIGNING_SECRET,
+      // Socket Mode only for local development
+      socketMode: useSocketMode,
+      appToken: useSocketMode ? env.SLACK_APP_TOKEN : undefined,
+      logLevel: LogLevel.INFO,
     });
+
+    if (isVercel) {
+      console.log("🚀 Running in Vercel (HTTP Mode)");
+    } else {
+      console.log("🔌 Running in Socket Mode");
+    }
   }
 
   getApp(): App {
@@ -157,6 +168,12 @@ export class SlackService {
    * Start the Slack app (connect to Socket Mode)
    */
   async start(port?: number): Promise<void> {
+    // If on Vercel, we don't start the app manually, it's event-driven
+    if (process.env.VERCEL === "1") {
+      console.log("⚡️ App initialized for Vercel (No separate listener needed)");
+      return;
+    }
+
     try {
       await this.app.start(port || 3000);
       console.log("⚡️ Slack app is running!");
@@ -164,6 +181,19 @@ export class SlackService {
       console.error("Failed to start Slack app:", error);
       throw error;
     }
+  }
+
+  /**
+   * Handle incoming HTTP requests (for Vercel)
+   */
+  public async handleRequest(req: any, res: any): Promise<void> {
+    // Bolt's receiver handles the raw request
+    const receiver = (this.app as any).receiver;
+    await receiver.processEvent(req.body, {
+      req,
+      res,
+      ack: async () => { }, // No-op for HTTP events
+    });
   }
 
   /**
