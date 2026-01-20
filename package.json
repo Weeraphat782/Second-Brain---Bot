@@ -1,0 +1,30 @@
+{
+  "name": "ai-second-brain",
+  "version": "1.0.0",
+  "description": "AI Second Brain - Slack + Gemini 3 Flash + Notion Integration",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": ["slack", "gemini", "notion", "ai", "second-brain"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^4.0.2",
+    "@notionhq/client": "^2.2.15",
+    "@google/generative-ai": "^0.21.0",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.5.4",
+    "tsx": "^4.16.2"
+  }
+}
