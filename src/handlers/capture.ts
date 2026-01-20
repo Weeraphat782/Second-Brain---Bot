@@ -8,7 +8,7 @@ import type { SlackMessageEvent } from "../types/index.js";
  * Flow: Slack -> Gemini -> Notion -> Slack confirmation
  */
 export async function handleCapture(event: SlackMessageEvent): Promise<void> {
-  const { channel, user, text, ts, thread_ts } = event;
+  const { channel, text, ts, thread_ts } = event;
 
   try {
     // Check if this is a thread reply (should be handled separately)

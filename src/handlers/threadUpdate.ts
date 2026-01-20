@@ -10,7 +10,7 @@ import type { SlackMessageEvent } from "../types/index.js";
 export async function handleThreadUpdate(
   event: SlackMessageEvent
 ): Promise<void> {
-  const { channel, user, text, thread_ts } = event;
+  const { channel, text, thread_ts } = event;
 
   if (!thread_ts) {
     return; // Not a thread reply

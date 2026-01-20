@@ -12,13 +12,13 @@ async function main() {
     const app = slackService.getApp();
 
     // Handle DMs and mentions
-    app.event("app_mention", async ({ event, say }) => {
+    app.event("app_mention", async ({ event }) => {
       console.log("DEBUG: app_mention event:", JSON.stringify(event, null, 2));
       // If this mention is inside a thread, treat it as an update, not a new capture
       if (event.thread_ts) {
         await handleThreadUpdate({
           channel: event.channel,
-          user: event.user,
+          user: event.user || "",
           text: event.text,
           ts: event.ts,
           thread_ts: event.thread_ts,
@@ -27,7 +27,7 @@ async function main() {
       } else {
         await handleCapture({
           channel: event.channel,
-          user: event.user,
+          user: event.user || "",
           text: event.text,
           ts: event.ts,
           thread_ts: event.thread_ts,
@@ -95,7 +95,7 @@ async function main() {
 
     // Handle action button interactions (for nightly review)
     // Handle Action Button Interactions
-    app.action("task_done", async ({ ack, action, respond }) => {
+    app.action("task_done", async ({ ack, respond }) => {
       await ack();
       await respond("Task marked as done!");
     });
@@ -113,13 +113,13 @@ async function main() {
       await import("./handlers/briefings.js").then(m => m.sendNightlyReview());
     });
 
-    app.action("task_reschedule", async ({ ack, action, respond }) => {
+    app.action("task_reschedule", async ({ ack, respond }) => {
       await ack();
       // Handle reschedule action - would prompt for new date
       await respond("Reschedule feature coming soon!");
     });
 
-    app.action("task_add_note", async ({ ack, action, respond }) => {
+    app.action("task_add_note", async ({ ack, respond }) => {
       await ack();
       // Handle add note action - would prompt for note
       await respond("Add note feature coming soon!");

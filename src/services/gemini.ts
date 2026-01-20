@@ -72,8 +72,8 @@ Original text: "${text}"`;
           thinkingConfig: {
             thinkingLevel: thinkingLevel,
             includeThoughts: true, // Required to get thoughtSignature for thread updates
-          } as any, // Type assertion until SDK types are updated
-        },
+          },
+        } as any,
       });
 
       const response = result.response;
@@ -132,8 +132,8 @@ Original text: "${text}"`;
       // With includeThoughts: true, the signature should be available in candidates
       const candidates = result.response.candidates || [];
       const thoughtSignature =
-        candidates[0]?.groundingMetadata?.thoughtSignature ||
-        candidates[0]?.thinkingLog?.thoughtSignature ||
+        (candidates[0] as any)?.groundingMetadata?.thoughtSignature ||
+        (candidates[0] as any)?.thinkingLog?.thoughtSignature ||
         (response as any).thoughtSignature ||
         this.generateFallbackSignature(text, extraction);
 
@@ -184,7 +184,7 @@ ${tasksText}`;
             thinkingLevel: "high",
             includeThoughts: false, // Not needed for summary generation
           } as any,
-        },
+        } as any,
       });
 
       return result.response.text();
@@ -242,8 +242,8 @@ ${tasksText}`;
           thinkingConfig: {
             thinkingLevel: "medium",
             includeThoughts: true, // Required for context updates with signature
-          } as any,
-        },
+          },
+        } as any,
       });
 
       const responseText = result.response.text();
@@ -371,7 +371,7 @@ Answer the user's question based ONLY on the found tasks. Be conversational, con
             thinkingLevel: "low",
             includeThoughts: false,
           } as any,
-        },
+        } as any,
       });
 
       return result.response.text();

@@ -152,7 +152,7 @@ export class NotionService {
           ? {
             type: "data_source_id",
             data_source_id: dataSourceId,
-          }
+          } as any
           : {
             type: "database_id",
             database_id: this.databaseId,
@@ -579,7 +579,7 @@ export class NotionService {
     try {
       // First, get the current page to read existing summary
       const page = await this.client.pages.retrieve({ page_id: pageId });
-      const properties = page.properties as any;
+      const properties = (page as any).properties || {};
       const currentSummary =
         properties.Summary?.rich_text?.[0]?.text?.content || "";
 

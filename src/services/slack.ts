@@ -1,13 +1,13 @@
 import { App, LogLevel } from "@slack/bolt";
 import { getEnv } from "../config/env.js";
-import type { SlackMessageEvent } from "../types/index.js";
+
 
 export class SlackService {
   private app: App;
 
   constructor() {
     const env = getEnv();
-    
+
     this.app = new App({
       token: env.SLACK_BOT_TOKEN,
       appToken: env.SLACK_APP_TOKEN,
