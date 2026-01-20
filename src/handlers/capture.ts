@@ -25,9 +25,7 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
     );
 
     // Analyze thought with Gemini (low thinking level for speed)
-    console.log("DEBUG: Starting Gemini analysis for text:", text);
     const geminiResponse = await geminiService.analyzeThought(text, "low");
-    console.log("DEBUG: Gemini analysis complete.");
 
     console.log("DEBUG: Gemini Extraction:", JSON.stringify(geminiResponse.extraction, null, 2));
 
@@ -149,7 +147,6 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
 
     // HANDLE NEW TASK CREATION (Default)
     // Update message to show progress
-    console.log("DEBUG: Handling new task creation...");
     await slackService.updateMessage(
       channel,
       streamResult.ts,
@@ -157,18 +154,17 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
     );
 
     // Create Notion page
-    console.log("DEBUG: Calling notionService.createPageFromThought...");
     const { pageId, url } = await notionService.createPageFromThought(
       geminiResponse.extraction,
       geminiResponse.thought_signature,
       ts
     );
-    console.log(`DEBUG: Notion page created successfully: ${pageId}`);
+
+    console.log(`Successfully created Notion page: ${pageId}`);
 
     // Send confirmation with Notion link
     await slackService.sendNotionLink(channel, ts, url, geminiResponse.extraction.title);
 
-    console.log(`Captured thought: ${geminiResponse.extraction.title} -> ${pageId}`);
   } catch (error) {
     console.error("Capture handler error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
