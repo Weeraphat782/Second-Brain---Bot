@@ -111,7 +111,9 @@ export class NotionService {
     thoughtSignature: string,
     slackThreadTS: string
   ): Promise<{ pageId: string; url: string }> {
+    console.log(`DEBUG: Creating page in Notion. Title: "${extraction.title}", DB ID: ${this.databaseId}`);
     const dataSourceId = await this.discoverDataSource();
+    console.log(`DEBUG: Data Source ID: ${dataSourceId || "None (using DB ID fallback)"}`);
 
     const properties: NotionPageProperties = {
       Title: {
@@ -159,6 +161,7 @@ export class NotionService {
           },
         properties: properties as any,
       });
+      console.log("DEBUG: Notion API call successful.");
 
       const pageId = page.id;
       const url = this.getPageUrl(pageId);
