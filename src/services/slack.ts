@@ -8,19 +8,18 @@ export class SlackService {
   constructor() {
     const env = getEnv();
 
-    // Check if running on Vercel or explicitly disabled socket mode
-    const isVercel = process.env.VERCEL === "1";
+    // Check if running on Vercel
+    const isVercel = process.env.VERCEL === "1" || !!process.env.VERCEL_URL;
     const useSocketMode = !isVercel;
 
     this.app = new App({
       token: env.SLACK_BOT_TOKEN,
       signingSecret: env.SLACK_SIGNING_SECRET,
-      // Socket Mode only for local development
       socketMode: useSocketMode,
       appToken: useSocketMode ? env.SLACK_APP_TOKEN : undefined,
       logLevel: LogLevel.INFO,
-      // Matches the Vercel function path
-      endpoints: isVercel ? "/api/events" : undefined,
+      // Specify the endpoint path for Bolt's internal router
+      endpoints: isVercel ? "/api/events" : "/slack/events",
     });
 
     if (isVercel) {

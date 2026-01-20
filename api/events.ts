@@ -2,50 +2,42 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { slackService } from '../src/services/slack.js';
 import { initApp } from '../src/index.js';
 
+// Disable body parsing so Bolt can handle the raw stream (needed for signature verification)
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
+
 let initialized = false;
 
-/**
- * Vercel Serverless Function to handle Slack Events
- */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send('Method Not Allowed');
     }
 
-    // Handle Slack URL Verification Challenge
-    if (req.body && req.body.type === 'url_verification') {
-        return res.status(200).json({ challenge: req.body.challenge });
-    }
-
     try {
-        // Ensure app/listeners are initialized exactly once per instance
         if (!initialized) {
-            console.log("DEBUG: Initialization starting in handler...");
+            console.log("DEBUG: Initializing App in Vercel handler...");
             await initApp();
             initialized = true;
-            console.log("DEBUG: Initialization complete in handler.");
         }
 
         const app = slackService.getApp();
+
+        // Use Bolt's requestListener directly with the raw stream
+        // This handles URL verification challenge and signature verification
+        console.log(`DEBUG: Delegating ${req.method} request to Bolt...`);
+
         const receiver = (app as any).receiver;
-
-        console.log(`DEBUG: Processing event: ${req.body.event?.type || req.body.type}`);
-
-        // Bolt's processEvent is used to handle the pre-parsed Vercel request body.
-        // We await this to ensure the handler work finishes before Vercel terminates.
-        await receiver.processEvent({
-            body: req.body,
-            headers: req.headers,
-            ack: async (response: any) => {
-                if (!res.writableEnded) {
-                    res.status(200).send(response || '');
-                }
-            },
-        });
-
-        console.log("DEBUG: Event processing finished successfully.");
+        if (receiver && typeof receiver.requestListener === 'function') {
+            return receiver.requestListener(req, res);
+        } else {
+            console.error("DEBUG: requestListener not found on receiver");
+            res.status(500).send("Internal Server Error: Receiver mismatch");
+        }
     } catch (error) {
-        console.error('Error in Slack Event Handler:', error);
+        console.error('Error in Vercel Slack Handler:', error);
         if (!res.writableEnded) {
             res.status(500).send('Internal Server Error');
         }
