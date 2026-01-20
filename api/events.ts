@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { slackService } from '../src/services/slack.js';
 import { initApp } from '../src/index.js';
 
-// Disable body parsing so Bolt can handle the raw stream (needed for signature verification)
+// Disable Vercel's body parser to allow Bolt to check signatures on the raw stream
 export const config = {
     api: {
         bodyParser: false,
@@ -25,17 +25,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const app = slackService.getApp();
 
-        // Use Bolt's requestListener directly with the raw stream
-        // This handles URL verification challenge and signature verification
-        console.log(`DEBUG: Delegating ${req.method} request to Bolt...`);
+        console.log("DEBUG: Delegating request to Bolt...");
 
+        // Use the official receiver.requestListener (which handles the response)
+        // Combined with processBeforeResponse: true in SlackService, 
+        // it will now wait for all handlers to finish before sending res.end()
         const receiver = (app as any).receiver;
-        if (receiver && typeof receiver.requestListener === 'function') {
-            return receiver.requestListener(req, res);
-        } else {
-            console.error("DEBUG: requestListener not found on receiver");
-            res.status(500).send("Internal Server Error: Receiver mismatch");
-        }
+
+        // We wrap it in a promise-like way or just ensure we don't return before it's done
+        // However, Node's http.RequestListener doesn't return a promise.
+        // The safest way on Vercel is to use the processEvent which takes a raw request/response 
+        // BUT since we are using Bolt 4.x, let's use the receiver's internal match
+
+        // Actually, receiver's requestListener will call res.end() when done.
+        // Vercel keeps the function alive UNTIL res.end() is called.
+        // With processBeforeResponse: true, Bolt won't call res.end() until our handlers are done.
+
+        await receiver.requestListener(req, res);
+
+        console.log("DEBUG: Request listener finished execution.");
     } catch (error) {
         console.error('Error in Vercel Slack Handler:', error);
         if (!res.writableEnded) {

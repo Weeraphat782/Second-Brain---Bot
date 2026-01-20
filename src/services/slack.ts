@@ -20,6 +20,8 @@ export class SlackService {
       logLevel: LogLevel.INFO,
       // Specify the endpoint path for Bolt's internal router
       endpoints: isVercel ? "/api/events" : "/slack/events",
+      // CRITICAL for Vercel/Serverless: Wait for handlers to finish before responding
+      processBeforeResponse: true,
     });
 
     if (isVercel) {
