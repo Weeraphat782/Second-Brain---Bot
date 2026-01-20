@@ -178,8 +178,14 @@ Original text: "${text}"`;
       )
       .join("\n");
 
-    const prompt = `Generate a concise daily focus list summary from these tasks. Focus on priorities and actionable items (2-3 sentences):
+    const prompt = `Generate a concise daily focus list summary from these tasks. Focus on priorities and actionable items (2-3 sentences).
+    
+IMPORTANT FORMATTING:
+- Use Slack's mrkdwn format.
+- Use *text* for bold (do NOT use **text**).
+- Use bullet points (-).
 
+Tasks for summary:
 ${tasksText}`;
 
     try {
@@ -372,7 +378,13 @@ User Question: "${userQuery}"
 Found Tasks:
 ${tasksContext || "No relevant tasks found."}
 
-Answer the user's question based ONLY on the found tasks. Be conversational, concise, and helpful. If no tasks found, say so politely.`;
+Answer the user's question based ONLY on the found tasks. Be conversational, concise, and helpful. If no tasks found, say so politely.
+
+IMPORTANT FORMATTING RULES:
+- Use Slack's mrkdwn format ONLY.
+- For BOLD text, use a single asterisk like this: *bold text*. 
+- DO NOT use double asterisks (**text**).
+- Use bullet points (-) for lists.`;
 
     try {
       const result = await model.generateContent({
