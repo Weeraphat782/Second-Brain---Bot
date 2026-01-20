@@ -9,6 +9,7 @@ import type { SlackMessageEvent } from "../types/index.js";
  */
 export async function handleCapture(event: SlackMessageEvent): Promise<void> {
   const { channel, text, ts, thread_ts } = event;
+  console.log(`DEBUG: handleCapture called for text: "${text.substring(0, 50)}..."`);
 
   try {
     // Check if this is a thread reply (should be handled separately)

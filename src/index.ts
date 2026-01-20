@@ -4,7 +4,8 @@ import { handleThreadUpdate } from "./handlers/threadUpdate.js";
 import { setupScheduler } from "./utils/scheduler.js";
 import { getEnv } from "./config/env.js";
 
-async function main() {
+export async function initApp() {
+  console.log("DEBUG: Initializing App...");
   try {
     // Validate environment
     getEnv();
@@ -131,10 +132,11 @@ async function main() {
     // Start the app
     await slackService.start();
 
-    console.log("✅ AI Second Brain is running!");
+    console.log("✅ AI Second Brain listeners registered!");
+    return app;
   } catch (error) {
-    console.error("Failed to start application:", error);
-    process.exit(1);
+    console.error("Failed to initialize application:", error);
+    throw error;
   }
 }
 
@@ -151,4 +153,11 @@ process.on("SIGTERM", async () => {
   process.exit(0);
 });
 
-main();
+// main() call removed for Vercel/Module compatibility
+// If not running in a serverless environment, you can call it at the bottom:
+if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "test") {
+  initApp().catch(err => {
+    console.error("Failed to start:", err);
+    process.exit(1);
+  });
+}

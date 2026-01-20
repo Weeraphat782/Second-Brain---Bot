@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { slackService } from '../src/services/slack.js';
+import { initApp } from '../src/index.js';
 
-// IMPORTANT: Import index.js to register events
-import '../src/index.js';
+let initialized = false;
 
 /**
  * Vercel Serverless Function to handle Slack Events
@@ -12,27 +12,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).send('Method Not Allowed');
     }
 
-    // Handle URL Verification
+    // Handle Slack URL Verification Challenge
     if (req.body && req.body.type === 'url_verification') {
         return res.status(200).json({ challenge: req.body.challenge });
     }
 
     try {
+        // Ensure app/listeners are initialized exactly once per instance
+        if (!initialized) {
+            console.log("DEBUG: Initialization starting in handler...");
+            await initApp();
+            initialized = true;
+            console.log("DEBUG: Initialization complete in handler.");
+        }
+
         const app = slackService.getApp();
         const receiver = (app as any).receiver;
 
-        // In Vercel, we use the receiver's requestListener directly.
-        // However, Bolt's HTTPReceiver expects the path to match.
-        // We already updated SlackService to set endpoints to /api/events.
+        console.log(`DEBUG: Processing event: ${req.body.event?.type || req.body.type}`);
 
-        // We proxy the request to Bolt's internal request listener
-        const requestListener = receiver.requestListener || receiver.requestHandler;
-
-        if (requestListener) {
-            return requestListener(req, res);
-        }
-
-        // Fallback if requestListener is not available
+        // Bolt's processEvent is used to handle the pre-parsed Vercel request body.
+        // We await this to ensure the handler work finishes before Vercel terminates.
         await receiver.processEvent({
             body: req.body,
             headers: req.headers,
@@ -42,6 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             },
         });
+
+        console.log("DEBUG: Event processing finished successfully.");
     } catch (error) {
         console.error('Error in Slack Event Handler:', error);
         if (!res.writableEnded) {
