@@ -1,5 +1,11 @@
 {
     "version": 2,
     "buildCommand": "npm run build",
-    "outputDirectory": "."
+    "outputDirectory": ".",
+    "functions": {
+        "api/**/*.ts": {
+            "maxDuration": 60,
+            "runtime": "nodejs20.x"
+        }
+    }
 }
