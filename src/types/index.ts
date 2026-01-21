@@ -11,8 +11,8 @@ export interface ThoughtExtraction {
   priority: TaskPriority;
   due_date: string; // ISO 8601 format
   assignee: string | null;
-  intent: "new_task" | "update_task" | "query"; // Detect if creating, updating, or querying
-  target_task_title: string | null; // If intent is update, this is the fuzzy title match
+  intent: "new_task" | "update_task" | "query" | "delete_task"; // Detect if creating, updating, querying, or deleting
+  target_task_title: string | null; // If intent is update or delete, this is the fuzzy title match
   search_query: string | null; // If intent is query, this is the search term
 }
 
@@ -22,7 +22,7 @@ export interface GeminiResponse {
 }
 
 export interface GeminiUpdateResult {
-  action: "completed" | "in_progress" | "detail" | "rescheduled" | "unchanged";
+  action: "completed" | "in_progress" | "detail" | "rescheduled" | "unchanged" | "deleted";
   updates?: {
     status?: "Done" | "In Progress";
     note?: string;

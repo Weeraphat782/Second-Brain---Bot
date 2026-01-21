@@ -630,6 +630,23 @@ export class NotionService {
   }
 
   /**
+   * Archive/Delete a Notion page
+   */
+  async archivePage(pageId: string): Promise<void> {
+    try {
+      await this.client.pages.update({
+        page_id: pageId,
+        archived: true,
+      });
+    } catch (error) {
+      console.error("Failed to archive Notion page:", error);
+      throw new Error(
+        `Page archive failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
    * Map a Notion page object to NotionTask
    */
   private mapPageToTask(page: any): NotionTask {

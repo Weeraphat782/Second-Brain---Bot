@@ -88,6 +88,13 @@ export async function handleThreadUpdate(
           thread_ts
         );
       }
+    } else if (updateResult.action === "deleted") {
+      await notionService.archivePage(task.pageId);
+      await slackService.sendMessage(
+        channel,
+        "🗑️ Task has been archived/removed.",
+        thread_ts
+      );
     } else {
       // unchanged - just acknowledge
       await slackService.sendMessage(

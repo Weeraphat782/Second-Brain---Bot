@@ -58,6 +58,34 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
       return;
     }
 
+    // HANDLE DELETE INTENT
+    if (geminiResponse.extraction.intent === "delete_task" && geminiResponse.extraction.target_task_title) {
+      await slackService.updateMessage(
+        channel,
+        streamResult.ts,
+        `🔎 Locating task "${geminiResponse.extraction.target_task_title}" for removal...`
+      );
+
+      const task = await notionService.findPageByTitle(geminiResponse.extraction.target_task_title);
+
+      if (task) {
+        await notionService.archivePage(task.pageId);
+        await slackService.updateMessage(
+          channel,
+          streamResult.ts,
+          `🗑️ Permanently removed (archived) "${task.title}" from your Second Brain.`
+        );
+        return;
+      } else {
+        await slackService.updateMessage(
+          channel,
+          streamResult.ts,
+          `⚠️ Could not find a task matching "${geminiResponse.extraction.target_task_title}" to delete.`
+        );
+        return;
+      }
+    }
+
     // HANDLE UPDATE INTENT
     if (geminiResponse.extraction.intent === "update_task" && geminiResponse.extraction.target_task_title) {
       await slackService.updateMessage(

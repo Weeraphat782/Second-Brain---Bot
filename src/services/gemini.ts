@@ -37,8 +37,8 @@ export class GeminiService {
   "priority": "One of: P1 (urgent), P2 (important), P3 (normal)",
   "due_date": "ISO 8601 date string (YYYY-MM-DD) or empty string if not specified",
   "assignee": "Name of person assigned (or null if none)",
-  "intent": "One of: new_task, update_task, query",
-  "target_task_title": "If intent is update_task, extract the name of the task being referenced. If new_task or query, null",
+  "intent": "One of: new_task, update_task, query, delete_task",
+  "target_task_title": "If intent is update_task or delete_task, extract the name of the task being referenced. If others, null",
   "search_query": "The specific term to search for. If user wants ALL tasks, set to 'all'."
 }
 
@@ -49,6 +49,9 @@ When the user says "tomorrow", use the day after this date.
 When the user says "next Monday", calculate based on this date.
 
 IMPORTANT - Intent Detection Rules:
+- "delete_task": User explicitly wants to DELETE, REMOVE, or ARCHIVE a task. 
+  * Keywords (Thai): "ลบ", "เอาออก", "ลบทิ้ง", "ลบงาน".
+  * Keywords (English): "delete", "remove", "archive", "destroy".
 - "query": User is asking a question about existing tasks, requesting a list, or checking status. Keywords: "What", "Show", "List", "Do I have", "How many", "search".
   * CRITICAL FOR SEARCH_QUERY:
     - If the user wants a list of EVERYTHING (e.g., "list all tasks", "show all", "งานทั้งหมด"), set search_query to "all".
@@ -61,12 +64,11 @@ IMPORTANT - Intent Detection Rules:
 - "new_task": User is engaging in a Thought/Idea or creating a TODO.
 
 Examples:
+- "ลบงาน Buy Milk" -> intent: "delete_task", target_task_title: "Buy Milk"
+- "Remove the task for Client X" -> intent: "delete_task", target_task_title: "Client X"
 - "List all tasks" -> intent: "query", search_query: "all"
 - "งานทั้งหมดมีอะไรบ้าง" -> intent: "query", search_query: "all"
-- "What tasks for Cantrak?" -> intent: "query", search_query: "Cantrak"
-- "Show me P1 tasks" -> intent: "query", search_query: "P1"
-- "Update Cantrak to done" -> intent: "update_task", target_task_title: "Cantrak"
-- "Buy milk" -> intent: "new_task"
+- "Update Client X to Done" -> intent: "update_task", target_task_title: "Client X"
 
 Do not include any markdown code blocks, explanations, or text outside the JSON object. Return ONLY the JSON.
 
@@ -234,7 +236,7 @@ ${tasksText}`;
     const prompt = `Given this task update/reply from the user, determine what action they're taking. Return JSON:
  
  {
-   "action": "One of: completed, in_progress, detail, rescheduled, unchanged",
+   "action": "One of: completed, in_progress, detail, rescheduled, deleted, unchanged",
    "updates": {
      "status": "Done" or "In Progress" (only if action is "completed" or "in_progress"),
      "note": "Additional detail to append" (if action is "detail"),
@@ -242,6 +244,9 @@ ${tasksText}`;
    },
    "thought_signature": "Updated signature if provided, otherwise empty string"
  }
+
+IMPORTANT - DELETE RECOGNITION:
+If the user says "delete this", "remove this", "ลบงานนี้", "ลบเลย", set action to "deleted".
 
 IMPORTANT - DATE CONTEXT:
 Today is: ${now} (Asia/Bangkok)
@@ -375,13 +380,19 @@ When the user mentions or implies dates (e.g. "tomorrow", "next week"), calculat
       `- [${t.status}] ${t.title} (Due: ${t.dueDate || 'N/A'}, Priority: ${t.priority})`
     ).join("\n");
 
-    const prompt = `You are a helpful assistant for the user's "Second Brain".
+    const prompt = `You are the core intelligence of the user's "Second Brain". You are proactive, conversational, and highly capable. 
 User Question: "${userQuery}"
 
-Found Tasks:
+Found Tasks for Context:
 ${tasksContext || "No relevant tasks found."}
 
-Answer the user's question based ONLY on the found tasks. Be conversational, concise, and helpful. If no tasks found, say so politely.
+INSTRUCTIONS:
+1. Answer the user's question accurately based on the provided tasks.
+2. Be conversational (like a senior assistant).
+3. If no tasks are found, don't just say "no tasks". Mention that you checked the brain and it's empty/clear for that query.
+4. If you see related tasks that aren't exact matches but might be relevant, mention them.
+5. Provide helpful tips or small summaries if appropriate.
+6. YOU ARE IN CHARGE. If the user asks for advice on their workload based on these tasks, provide it.
 
 IMPORTANT FORMATTING RULES:
 - Use Slack's mrkdwn format ONLY.
