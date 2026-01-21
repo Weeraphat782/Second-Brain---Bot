@@ -39,7 +39,7 @@ export class GeminiService {
   "assignee": "Name of person assigned (or null if none)",
   "intent": "One of: new_task, update_task, query",
   "target_task_title": "If intent is update_task, extract the name of the task being referenced. If new_task or query, null",
-  "search_query": "If intent is query, extract the topic/keywords to search for. If others, null"
+  "search_query": "The specific term to search for. If user wants ALL tasks, set to 'all'."
 }
 
 IMPORTANT - DATE CONTEXT:
@@ -50,20 +50,23 @@ When the user says "next Monday", calculate based on this date.
 
 IMPORTANT - Intent Detection Rules:
 - "query": User is asking a question about existing tasks, requesting a list, or checking status. Keywords: "What", "Show", "List", "Do I have", "How many", "search".
-  * CRITICAL FOR SEARCH_QUERY: Extract ONLY the specific name, status, or category. Remove "tasks for", "work of", "show me", "list".
+  * CRITICAL FOR SEARCH_QUERY:
+    - If the user wants a list of EVERYTHING (e.g., "list all tasks", "show all", "งานทั้งหมด"), set search_query to "all".
+    - If searching for a person, use their name (e.g., "Tasks for View" -> "View").
+    - If searching for a status, use the status (e.g., "P1 tasks" -> "P1").
+    - Remove filler words like "tasks for", "work of", "show me", "list".
+    - IGNORE bot mentions or names (e.g., "@Second Brain", "Second Brain") in the search_query.
   * If the user uses a Thai nickname, convert it to English if it's a likely match (e.g. "วิว" -> "View", "นุ่น" -> "Noon").
-  * Example: "Tasks for View" -> search_query: "View"
-  * Example: "งานของวิว" -> search_query: "View"
-  * Example: "งานของ Cantrak" -> search_query: "Cantrak"
 - "update_task": User explicitly wants to CHANGE an existing task (status, note, date). Keywords: "update", "done", "finish", "complete", "doing", "change".
 - "new_task": User is engaging in a Thought/Idea or creating a TODO.
 
 Examples:
+- "List all tasks" -> intent: "query", search_query: "all"
+- "งานทั้งหมดมีอะไรบ้าง" -> intent: "query", search_query: "all"
 - "What tasks for Cantrak?" -> intent: "query", search_query: "Cantrak"
 - "Show me P1 tasks" -> intent: "query", search_query: "P1"
 - "Update Cantrak to done" -> intent: "update_task", target_task_title: "Cantrak"
 - "Buy milk" -> intent: "new_task"
-- "Visit Client X" -> intent: "new_task"
 
 Do not include any markdown code blocks, explanations, or text outside the JSON object. Return ONLY the JSON.
 

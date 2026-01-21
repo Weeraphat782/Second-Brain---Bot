@@ -469,11 +469,20 @@ export class NotionService {
    * Search tasks for conversational query (broad search)
    */
   async searchTasks(query: string): Promise<NotionTask[]> {
-    console.log(`DEBUG: Searching Notion tasks. Query: "${query}", DatabaseID: "${this.databaseId}"`);
+    console.log(`DEBUG: Searching Notion tasks. Query: "${query}"`);
     try {
-      const response = await this.client.databases.query({
-        database_id: this.databaseId,
-        filter: {
+      // If query is "all" or empty, return all non-done tasks
+      const queryLower = query?.toLowerCase() || "";
+      const isBroadSearch = !queryLower || queryLower === "all" || queryLower === "everything" || queryLower === "everyone";
+
+      const filter: any = isBroadSearch
+        ? {
+          property: "Status",
+          status: {
+            does_not_equal: "Done"
+          }
+        }
+        : {
           or: [
             {
               property: "Title",
@@ -482,38 +491,34 @@ export class NotionService {
               },
             },
             {
-              property: "Category",
-              select: {
-                equals: query,
-              },
-            },
-            {
-              property: "Status", // Also allow searching by status (e.g. "Done")
-              status: {
-                equals: query
-              }
-            },
-            {
               property: "Assign to",
               rich_text: {
                 contains: query
               }
             },
             {
-              property: "Summary",
-              rich_text: {
-                contains: query
-              }
-            },
-            {
-              property: "Priority",
+              property: "Category",
               select: {
-                equals: query
-              }
+                equals: query,
+              },
             }
           ],
-        },
-        page_size: 10, // Limit results
+        };
+
+      const response = await this.client.databases.query({
+        database_id: this.databaseId,
+        filter: filter,
+        sorts: [
+          {
+            property: "Priority",
+            direction: "ascending",
+          },
+          {
+            property: "Due Date",
+            direction: "ascending",
+          },
+        ],
+        page_size: 15,
       });
 
       return response.results.map(this.mapPageToTask);
