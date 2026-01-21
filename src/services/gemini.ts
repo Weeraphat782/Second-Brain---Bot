@@ -327,17 +327,17 @@ When the user mentions or implies dates (e.g. "tomorrow", "next week"), calculat
   }
 
   /**
-   * Generate a fallback signature if not provided by API
+   * Generate a dummy signature hash from text
    */
-  private generateFallbackSignature(
-    originalText: string,
-    extraction: ThoughtExtraction
-  ): string {
-    const timestamp = Date.now();
-    const contentHash = Buffer.from(
-      `${originalText}-${extraction.title}-${timestamp}`
-    ).toString("base64");
-    return `fallback_${contentHash.substring(0, 32)}`;
+  private generateDummyHash(text: string): string {
+    // Basic hash from text string for fallback
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36).substring(0, 8);
   }
   /**
    * Synthesize an answer from search results
