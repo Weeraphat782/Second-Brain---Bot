@@ -63,10 +63,15 @@ IMPORTANT - Intent Detection Rules:
 - "update_task": User explicitly wants to CHANGE an existing task (status, note, date). Keywords: "update", "done", "finish", "complete", "doing", "change".
 - "new_task": User is engaging in a Thought/Idea or creating a TODO.
 
+CRITICAL: If the user provides a list (bullet points, numbered list, or multiple lines), you MUST extract each item as a SEPARATE object in the "extractions" array. Do not consolidate them.
+
 Multiple Items Example:
-"List tasks and add a new task: Walk the dog" -> This should result in TWO items in the "extractions" array.
-Item 1: intent: "query", search_query: "all"
-Item 2: intent: "new_task", title: "Walk the dog"
+User: "List tasks and add 2 things: 1. Buy milk 2. Call boss"
+Output: extractions array with 3 items (1 query, 2 new_tasks).
+
+Bulleted List Example:
+User: "- Task A (Due: tomorrow) \n - Task B"
+Output: extractions array with 2 items (2 new_tasks).
 
 Do not include any markdown code blocks, explanations, or text outside the JSON object. Return ONLY the JSON.
 
