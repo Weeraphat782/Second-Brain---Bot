@@ -60,27 +60,40 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
 
     // HANDLE DELETE INTENT
     if (geminiResponse.extraction.intent === "delete_task" && geminiResponse.extraction.target_task_title) {
+      const deleteTerm = geminiResponse.extraction.target_task_title;
+
       await slackService.updateMessage(
         channel,
         streamResult.ts,
-        `🔎 Locating task "${geminiResponse.extraction.target_task_title}" for removal...`
+        `🔎 Searching for tasks related to "${deleteTerm}" to remove...`
       );
 
-      const task = await notionService.findPageByTitle(geminiResponse.extraction.target_task_title);
+      // Use search instead of single find to support "delete all from X"
+      const tasksToDelete = await notionService.searchTasks(deleteTerm);
 
-      if (task) {
-        await notionService.archivePage(task.pageId);
+      if (tasksToDelete.length > 0) {
         await slackService.updateMessage(
           channel,
           streamResult.ts,
-          `🗑️ Permanently removed (archived) "${task.title}" from your Second Brain.`
+          `🗑️ Found ${tasksToDelete.length} task(s). Archiving now...`
+        );
+
+        // Perform batch archiving
+        for (const task of tasksToDelete) {
+          await notionService.archivePage(task.pageId);
+        }
+
+        await slackService.updateMessage(
+          channel,
+          streamResult.ts,
+          `✅ Successfully removed ${tasksToDelete.length} task(s) related to "${deleteTerm}" from your Second Brain.`
         );
         return;
       } else {
         await slackService.updateMessage(
           channel,
           streamResult.ts,
-          `⚠️ Could not find a task matching "${geminiResponse.extraction.target_task_title}" to delete.`
+          `⚠️ Could not find any tasks matching "${deleteTerm}" to delete.`
         );
         return;
       }

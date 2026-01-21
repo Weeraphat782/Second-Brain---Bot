@@ -52,8 +52,9 @@ IMPORTANT - Intent Detection Rules:
 - "delete_task": User explicitly wants to DELETE, REMOVE, or ARCHIVE a task. 
   * Keywords (Thai): "ลบ", "เอาออก", "ลบทิ้ง", "ลบงาน".
   * Keywords (English): "delete", "remove", "archive", "destroy".
+  * CRITICAL FOR target_task_title: Extract ONLY the subject or person. Remove "all tasks for", "ทุกงานของ", "ลบงาน", "@Second Brain".
 - "query": User is asking a question about existing tasks, requesting a list, or checking status. Keywords: "What", "Show", "List", "Do I have", "How many", "search".
-  * CRITICAL FOR SEARCH_QUERY:
+  * CRITICAL FOR search_query:
     - If the user wants a list of EVERYTHING (e.g., "list all tasks", "show all", "งานทั้งหมด"), set search_query to "all".
     - If searching for a person, use their name (e.g., "Tasks for View" -> "View").
     - If searching for a status, use the status (e.g., "P1 tasks" -> "P1").
@@ -64,6 +65,7 @@ IMPORTANT - Intent Detection Rules:
 - "new_task": User is engaging in a Thought/Idea or creating a TODO.
 
 Examples:
+- "ลบงานของวิวทั้งหมด" -> intent: "delete_task", target_task_title: "View"
 - "ลบงาน Buy Milk" -> intent: "delete_task", target_task_title: "Buy Milk"
 - "Remove the task for Client X" -> intent: "delete_task", target_task_title: "Client X"
 - "List all tasks" -> intent: "query", search_query: "all"
