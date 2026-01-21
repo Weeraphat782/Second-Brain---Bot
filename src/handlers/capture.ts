@@ -24,178 +24,97 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
       "🤔 Understanding your request..."
     );
 
-    // Analyze thought with Gemini (low thinking level for speed)
-    const geminiResponse = await geminiService.analyzeThought(text, "low");
+    // START AGENTIC CHAT (MCP-Style)
+    await slackService.updateMessage(channel, streamResult.ts, "🧠 Thinking agentically...");
 
-    console.log(`DEBUG: Gemini extracted ${geminiResponse.extractions.length} item(s)`);
+    let { response, chat } = await geminiService.startAgenticChat(text);
 
-    // PROCESS EACH EXTRACTION SEQUENTIALLY
-    for (const extraction of geminiResponse.extractions) {
-      console.log("DEBUG: Processing Extraction:", JSON.stringify(extraction, null, 2));
+    // LOOP TO HANDLE TOOL CALLS (MULTIPLE TURNS IF NECESSARY)
+    let callCount = 0;
+    const MAX_CALLS = 5;
 
-      // HANDLE QUERY INTENT
-      if (extraction.intent === "query") {
-        const searchQuery = extraction.search_query || text;
+    while (response.functionCalls()?.length && callCount < MAX_CALLS) {
+      callCount++;
+      const functionCalls = response.functionCalls();
+      if (!functionCalls) break;
 
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `🔎 Searching Notion for "${searchQuery}"...`
-        );
+      const functionResponses = [];
 
-        const tasks = await notionService.searchTasks(searchQuery);
-        console.log(`DEBUG: Found ${tasks.length} tasks for query "${searchQuery}"`);
+      for (const call of functionCalls) {
+        console.log(`DEBUG: Agentic Tool Call: ${call.name}`, call.args);
 
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `🤔 Analyzing ${tasks.length} found tasks...`
-        );
+        // Inform user of tool usage
+        await slackService.updateMessage(channel, streamResult.ts, `🛠️ Executing: ${call.name}...`);
 
-        const answer = await geminiService.answerQuery(text, tasks);
-
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          answer
-        );
-        // Continue to next extraction (don't return)
-      }
-
-      // HANDLE DELETE INTENT
-      else if (extraction.intent === "delete_task" && extraction.target_task_title) {
-        const deleteTerm = extraction.target_task_title;
-
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `🔎 Searching for tasks related to "${deleteTerm}" to remove...`
-        );
-
-        // Use search instead of single find to support "delete all from X"
-        const tasksToDelete = await notionService.searchTasks(deleteTerm);
-
-        if (tasksToDelete.length > 0) {
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `🗑️ Found ${tasksToDelete.length} task(s). Archiving now...`
-          );
-
-          // Perform batch archiving
-          for (const task of tasksToDelete) {
-            await notionService.archivePage(task.pageId);
-          }
-
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `✅ Successfully removed ${tasksToDelete.length} task(s) related to "${deleteTerm}" from your Second Brain.`
-          );
-        } else {
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `⚠️ Could not find any tasks matching "${deleteTerm}" to delete.`
-          );
-        }
-      }
-
-      // HANDLE UPDATE INTENT
-      else if (extraction.intent === "update_task" && extraction.target_task_title) {
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `🔎 Searching for task "${extraction.target_task_title}"...`
-        );
-
-        const task = await notionService.findPageByTitle(extraction.target_task_title);
-
-        if (task) {
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `🔄 Found "${task.title}". Updating status...`
-          );
-
-          const updateResult = await geminiService.updateWithContext(
-            task.thoughtSignature || "",
-            text,
-            {
-              title: task.title,
-              summary: task.summary,
-              status: task.status,
-            }
-          );
-
-          // Apply updates to Notion
-          if (updateResult.action === "completed") {
-            await notionService.updatePageStatus(task.pageId, "Done");
-            await slackService.updateMessage(
-              channel,
-              streamResult.ts,
-              `✅ Updated "${task.title}" to Done!`
-            );
-          } else if (updateResult.action === "in_progress") {
-            await notionService.updatePageStatus(task.pageId, "In Progress");
-            await slackService.updateMessage(
-              channel,
-              streamResult.ts,
-              `🚀 Updated "${task.title}" to In Progress!`
-            );
-          } else if (updateResult.action === "detail") {
-            const note = updateResult.updates?.note || text;
-            await notionService.appendNote(task.pageId, note);
-            await slackService.updateMessage(
-              channel,
-              streamResult.ts,
-              `📝 Added note to "${task.title}"`
-            );
-          } else if (updateResult.action === "rescheduled") {
-            const newDueDate = updateResult.updates?.due_date;
-            if (newDueDate) {
-              await notionService.updateDueDate(task.pageId, newDueDate);
-              await slackService.updateMessage(
-                channel,
-                streamResult.ts,
-                `📅 Rescheduled "${task.title}" to ${newDueDate}`
+        let result;
+        try {
+          switch (call.name) {
+            case "search_tasks":
+              const tasks = await notionService.searchTasks((call.args as any).query);
+              result = { tasks }; // Wrap array in object
+              break;
+            case "create_task":
+              const createTaskArgs = call.args as any;
+              const createdPage = await notionService.createPageFromThought(
+                {
+                  title: createTaskArgs.title,
+                  category: createTaskArgs.category || "Work",
+                  priority: createTaskArgs.priority || "P3",
+                  due_date: createTaskArgs.dueDate || "",
+                  clean_summary: createTaskArgs.summary || "",
+                  assignee: null,
+                  intent: "new_task",
+                  target_task_title: null,
+                  search_query: null
+                },
+                "agentic_create",
+                ts
               );
-            }
-          } else {
-            await slackService.updateMessage(
-              channel,
-              streamResult.ts,
-              `👌 Acknowledged update for "${task.title}"`
-            );
+              result = { success: true, pageId: createdPage.pageId, url: createdPage.url };
+              break;
+            case "update_task_status":
+              await notionService.updatePageStatus((call.args as any).pageId, (call.args as any).status);
+              result = { success: true };
+              break;
+            case "archive_tasks":
+              const tasksToArchive = await notionService.searchTasks((call.args as any).searchTerm);
+              for (const t of tasksToArchive) {
+                await notionService.archivePage(t.pageId);
+              }
+              result = { success: true, archivedCount: tasksToArchive.length };
+              break;
+            case "add_task_note":
+              await notionService.appendNote((call.args as any).pageId, (call.args as any).note);
+              result = { success: true };
+              break;
+            default:
+              result = { error: "Unknown tool" };
           }
-        } else {
-          await slackService.sendMessage(
-            channel,
-            `⚠️ Could not find task "${extraction.target_task_title}" for updating.`,
-            ts
-          );
+        } catch (error) {
+          console.error(`Tool execution failed (${call.name}):`, error);
+          result = { error: error instanceof Error ? error.message : String(error) };
         }
+
+        functionResponses.push({
+          functionResponse: {
+            name: call.name,
+            response: result
+          },
+        });
       }
 
-      // HANDLE NEW TASK CREATION (Default)
-      else if (extraction.intent === "new_task") {
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `💾 Saving "${extraction.title}" to Notion...`
-        );
-
-        const { pageId, url } = await notionService.createPageFromThought(
-          extraction,
-          geminiResponse.thought_signature,
-          ts
-        );
-
-        console.log(`Successfully created Notion page: ${pageId}`);
-
-        await slackService.sendNotionLink(channel, ts, url, extraction.title);
-      }
+      // Send results back to Gemini for next step
+      const nextStep = await chat.sendMessage(functionResponses);
+      response = nextStep.response;
     }
+
+    // FINAL RESPONSE
+    const finalAnswer = response.text();
+    await slackService.updateMessage(
+      channel,
+      streamResult.ts,
+      finalAnswer
+    );
 
   } catch (error) {
     console.error("Capture handler error:", error);

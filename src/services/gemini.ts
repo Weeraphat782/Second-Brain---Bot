@@ -15,8 +15,117 @@ export class GeminiService {
     this.client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   }
 
+  // MCP-Style Tools (Function Declarations)
+  private readonly notionTools = {
+    functionDeclarations: [
+      {
+        name: "search_tasks",
+        description: "Search for existing tasks in Notion by keyword, title, assignee, or category. Returns a list of matching tasks with IDs.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description: "The search keyword (e.g., 'Buy milk', 'View', 'P1', or 'all' for everything).",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "create_task",
+        description: "Create a new task in Notion.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING", description: "Short, clear task title." },
+            category: { type: "STRING", enum: ["Work", "Personal", "Idea", "Health"], description: "Task category." },
+            priority: { type: "STRING", enum: ["P1", "P2", "P3"], description: "Priority level (P1 is highest)." },
+            dueDate: { type: "STRING", description: "ISO 8601 date string (YYYY-MM-DD)." },
+            summary: { type: "STRING", description: "Brief description or details of the task." },
+          },
+          required: ["title"],
+        },
+      },
+      {
+        name: "update_task_status",
+        description: "Update the status of a specific task in Notion using its ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            pageId: { type: "STRING", description: "The Notion Page ID (UUID)." },
+            status: { type: "STRING", enum: ["To Do", "In Progress", "Done"], description: "New status." },
+          },
+          required: ["pageId", "status"],
+        },
+      },
+      {
+        name: "archive_tasks",
+        description: "Delete (archive) tasks in Notion matching a search term. Useful for batch deletion.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            searchTerm: { type: "STRING", description: "Keyword to identify which tasks to archive." },
+          },
+          required: ["searchTerm"],
+        },
+      },
+      {
+        name: "add_task_note",
+        description: "Append a descriptive note or update to a specific task in Notion.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            pageId: { type: "STRING", description: "The Notion Page ID (UUID)." },
+            note: { type: "STRING", description: "The text to append to the task summary." },
+          },
+          required: ["pageId", "note"],
+        },
+      },
+    ],
+  };
+
+  /**
+   * Process a command using Gemini's native Tool Use (Function Calling).
+   * This is the "MCP-Style" agentic flow.
+   */
+  async startAgenticChat(text: string) {
+    const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+    const model = this.client.getGenerativeModel({
+      model: this.modelName,
+      tools: [this.notionTools] as any,
+    });
+
+    const chat = model.startChat({
+      history: [],
+      generationConfig: {
+        temperature: 0.1, // Low temperature for reliable tool selection
+      },
+    });
+
+    const systemPrompt = `You are the agentic core of a "Second Brain" system.
+Today's date: ${now} (Asia/Bangkok).
+
+INSTRUCTIONS:
+1. You have access to Notion tools to search, create, update, and archive tasks.
+2. Use these tools to fulfill User requests.
+3. If a request is complex (e.g., "Find all tasks for X and mark as Done"), you can call multiple tools or call them sequentially.
+4. If you need to find a task's ID before updating it, use the 'search_tasks' tool first.
+5. Provide a direct, concise response to the user after your tool calls are finished.
+6. For BOLD text in your final response, use *bold* (single asterisk).
+
+User Message: "${text}"`;
+
+    const result = await chat.sendMessage(systemPrompt);
+    return {
+      response: result.response,
+      chat: chat,
+    };
+  }
+
   /**
    * Analyze a thought/task from Slack and extract structured data
+   * @deprecated Use startAgenticChat for better MCP-style support
    */
   async analyzeThought(text: string, thinkingLevel: ThinkingLevel = "medium"): Promise<GeminiResponse> {
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
