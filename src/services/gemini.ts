@@ -19,27 +19,26 @@ export class GeminiService {
   /**
    * Analyze a thought/task from Slack and extract structured data
    */
-  async analyzeThought(
-    text: string,
-    thinkingLevel: ThinkingLevel = "low"
-  ): Promise<GeminiResponse> {
-    const model = this.client.getGenerativeModel({
-      model: this.modelName,
-    });
-
+  async analyzeThought(text: string, thinkingLevel: ThinkingLevel = "medium"): Promise<GeminiResponse> {
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-    const prompt = `Analyze the following thought/task and extract structured information. Return ONLY a valid JSON object with no additional text, comments, or markdown formatting. The JSON must match this exact structure:
+    const prompt = `You are a logical parsing engine. Extract ALL tasks, queries, or deletions from the text into a JSON array. Break down complex messages into individual items.
 
+Return JSON in this EXACT format:
 {
-  "title": "A concise title (max 100 chars)",
-  "clean_summary": "A clean summary of the thought/task (2-3 sentences)",
-  "category": "One of: Work, Personal, Idea, Health",
-  "priority": "One of: P1 (urgent), P2 (important), P3 (normal)",
-  "due_date": "ISO 8601 date string (YYYY-MM-DD) or empty string if not specified",
-  "assignee": "Name of person assigned (or null if none)",
-  "intent": "One of: new_task, update_task, query, delete_task",
-  "target_task_title": "If intent is update_task or delete_task, extract the name of the task being referenced. If others, null",
-  "search_query": "The specific term to search for. If user wants ALL tasks, set to 'all'."
+  "extractions": [
+    {
+      "title": "A concise title (max 100 chars)",
+      "clean_summary": "A clean summary of the thought/task (2-3 sentences)",
+      "category": "One of: Work, Personal, Idea, Health",
+      "priority": "One of: P1 (urgent), P2 (important), P3 (normal)",
+      "due_date": "ISO 8601 date string (YYYY-MM-DD) or empty string if not specified",
+      "assignee": "Name of person assigned (or null if none)",
+      "intent": "One of: new_task, update_task, query, delete_task",
+      "target_task_title": "If intent is update_task or delete_task, extract the name of the task being referenced. If others, null",
+      "search_query": "The specific term to search for. If user wants ALL tasks, set to 'all'."
+    }
+  ],
+  "thought_signature": "A unique hex signature (short hash) representing the OVERALL message content"
 }
 
 IMPORTANT - DATE CONTEXT:
@@ -64,102 +63,70 @@ IMPORTANT - Intent Detection Rules:
 - "update_task": User explicitly wants to CHANGE an existing task (status, note, date). Keywords: "update", "done", "finish", "complete", "doing", "change".
 - "new_task": User is engaging in a Thought/Idea or creating a TODO.
 
-Examples:
-- "ลบงานของวิวทั้งหมด" -> intent: "delete_task", target_task_title: "View"
-- "ลบงาน Buy Milk" -> intent: "delete_task", target_task_title: "Buy Milk"
-- "Remove the task for Client X" -> intent: "delete_task", target_task_title: "Client X"
-- "List all tasks" -> intent: "query", search_query: "all"
-- "งานทั้งหมดมีอะไรบ้าง" -> intent: "query", search_query: "all"
-- "Update Client X to Done" -> intent: "update_task", target_task_title: "Client X"
+Multiple Items Example:
+"List tasks and add a new task: Walk the dog" -> This should result in TWO items in the "extractions" array.
+Item 1: intent: "query", search_query: "all"
+Item 2: intent: "new_task", title: "Walk the dog"
 
 Do not include any markdown code blocks, explanations, or text outside the JSON object. Return ONLY the JSON.
 
 Original text: "${text}"`;
 
     try {
-      // Use thinkingConfig nested inside generationConfig for Gemini 3 Flash
+      const model = this.client.getGenerativeModel({
+        model: this.modelName,
+      });
+
       const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          responseMimeType: "application/json",
           thinkingConfig: {
             thinkingLevel: thinkingLevel,
-            includeThoughts: true, // Required to get thoughtSignature for thread updates
+            includeThoughts: true,
           },
         } as any,
       });
 
-      const response = result.response;
-      const textContent = response.text();
+      const responseText = result.response.text();
 
-      // Parse JSON response with multiple fallback strategies
-      let extraction: ThoughtExtraction;
-      try {
-        // First, try parsing directly
-        extraction = JSON.parse(textContent.trim());
-      } catch (parseError) {
-        // Try extracting JSON from markdown code blocks (multiple patterns)
-        let jsonString: string | null = null;
-
-        // Pattern 1: ```json ... ```
-        const jsonCodeBlock = textContent.match(/```json\s*\n?([\s\S]*?)\n?```/i);
-        if (jsonCodeBlock) {
-          jsonString = jsonCodeBlock[1].trim();
-        }
-
-        // Pattern 2: ``` ... ``` (generic code block)
-        if (!jsonString) {
-          const genericCodeBlock = textContent.match(/```\s*\n?([\s\S]*?)\n?```/);
-          if (genericCodeBlock) {
-            jsonString = genericCodeBlock[1].trim();
-          }
-        }
-
-        // Pattern 3: Find JSON object in text (starts with { and ends with })
-        if (!jsonString) {
-          const jsonObjectMatch = textContent.match(/\{[\s\S]*\}/);
-          if (jsonObjectMatch) {
-            jsonString = jsonObjectMatch[0].trim();
-          }
-        }
-
-        if (jsonString) {
-          try {
-            extraction = JSON.parse(jsonString);
-          } catch (jsonError) {
-            console.error("JSON parsing failed. Raw response:", textContent);
-            console.error("Extracted JSON string:", jsonString);
-            throw new Error(
-              `Failed to parse extracted JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}. Response: ${textContent.substring(0, 500)}`
-            );
-          }
-        } else {
-          console.error("No JSON found in response. Raw response:", textContent);
-          throw new Error(
-            `Failed to extract JSON from Gemini response. Response: ${textContent.substring(0, 500)}`
-          );
+      // Robust JSON parsing
+      let cleanResponse = responseText.trim();
+      // Try to extract JSON from markdown code blocks
+      const jsonCodeBlock = cleanResponse.match(/```json\s*\n?([\s\S]*?)\n?```/i);
+      if (jsonCodeBlock) {
+        cleanResponse = jsonCodeBlock[1].trim();
+      } else {
+        const genericCodeBlock = cleanResponse.match(/```\s*\n?([\s\S]*?)\n?```/);
+        if (genericCodeBlock) {
+          cleanResponse = genericCodeBlock[1].trim();
         }
       }
 
-      // Extract thought_signature from response metadata
-      // With includeThoughts: true, the signature should be available in candidates
-      const candidates = result.response.candidates || [];
-      const thoughtSignature =
-        (candidates[0] as any)?.groundingMetadata?.thoughtSignature ||
-        (candidates[0] as any)?.thinkingLog?.thoughtSignature ||
-        (response as any).thoughtSignature ||
-        this.generateFallbackSignature(text, extraction);
+      const parsedResult = JSON.parse(cleanResponse);
 
       return {
-        extraction,
-        thought_signature: thoughtSignature,
+        extractions: parsedResult.extractions || [],
+        thought_signature: parsedResult.thought_signature || this.generateDummyHash(text),
       };
     } catch (error) {
-      console.error("Gemini API error:", error);
-      throw new Error(
-        `Failed to analyze thought with Gemini: ${error instanceof Error ? error.message : String(error)}`
-      );
+      console.warn("JSON parsing failed, falling back to dummy response:", error);
+      return {
+        extractions: [
+          {
+            title: text.substring(0, 50),
+            clean_summary: text,
+            category: "Work",
+            priority: "P3",
+            due_date: "",
+            assignee: null,
+            intent: "new_task",
+            target_task_title: null,
+            search_query: null,
+          }
+        ],
+        thought_signature: this.generateDummyHash(text),
+      };
     }
   }
 

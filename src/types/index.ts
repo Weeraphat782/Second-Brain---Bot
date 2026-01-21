@@ -17,7 +17,7 @@ export interface ThoughtExtraction {
 }
 
 export interface GeminiResponse {
-  extraction: ThoughtExtraction;
+  extractions: ThoughtExtraction[];
   thought_signature: string;
 }
 

@@ -27,184 +27,175 @@ export async function handleCapture(event: SlackMessageEvent): Promise<void> {
     // Analyze thought with Gemini (low thinking level for speed)
     const geminiResponse = await geminiService.analyzeThought(text, "low");
 
-    console.log("DEBUG: Gemini Extraction:", JSON.stringify(geminiResponse.extraction, null, 2));
+    console.log(`DEBUG: Gemini extracted ${geminiResponse.extractions.length} item(s)`);
 
-    // HANDLE QUERY INTENT
-    if (geminiResponse.extraction.intent === "query") {
-      const searchQuery = geminiResponse.extraction.search_query || text;
+    // PROCESS EACH EXTRACTION SEQUENTIALLY
+    for (const extraction of geminiResponse.extractions) {
+      console.log("DEBUG: Processing Extraction:", JSON.stringify(extraction, null, 2));
 
-      await slackService.updateMessage(
-        channel,
-        streamResult.ts,
-        `🔎 Searching Notion for "${searchQuery}"...`
-      );
-
-      const tasks = await notionService.searchTasks(searchQuery);
-      console.log(`DEBUG: Found ${tasks.length} tasks for query "${searchQuery}"`);
-
-      await slackService.updateMessage(
-        channel,
-        streamResult.ts,
-        `🤔 Analyzing ${tasks.length} found tasks...`
-      );
-
-      const answer = await geminiService.answerQuery(text, tasks);
-
-      await slackService.updateMessage(
-        channel,
-        streamResult.ts,
-        answer
-      );
-      return;
-    }
-
-    // HANDLE DELETE INTENT
-    if (geminiResponse.extraction.intent === "delete_task" && geminiResponse.extraction.target_task_title) {
-      const deleteTerm = geminiResponse.extraction.target_task_title;
-
-      await slackService.updateMessage(
-        channel,
-        streamResult.ts,
-        `🔎 Searching for tasks related to "${deleteTerm}" to remove...`
-      );
-
-      // Use search instead of single find to support "delete all from X"
-      const tasksToDelete = await notionService.searchTasks(deleteTerm);
-
-      if (tasksToDelete.length > 0) {
-        await slackService.updateMessage(
-          channel,
-          streamResult.ts,
-          `🗑️ Found ${tasksToDelete.length} task(s). Archiving now...`
-        );
-
-        // Perform batch archiving
-        for (const task of tasksToDelete) {
-          await notionService.archivePage(task.pageId);
-        }
+      // HANDLE QUERY INTENT
+      if (extraction.intent === "query") {
+        const searchQuery = extraction.search_query || text;
 
         await slackService.updateMessage(
           channel,
           streamResult.ts,
-          `✅ Successfully removed ${tasksToDelete.length} task(s) related to "${deleteTerm}" from your Second Brain.`
+          `🔎 Searching Notion for "${searchQuery}"...`
         );
-        return;
-      } else {
+
+        const tasks = await notionService.searchTasks(searchQuery);
+        console.log(`DEBUG: Found ${tasks.length} tasks for query "${searchQuery}"`);
+
         await slackService.updateMessage(
           channel,
           streamResult.ts,
-          `⚠️ Could not find any tasks matching "${deleteTerm}" to delete.`
+          `🤔 Analyzing ${tasks.length} found tasks...`
         );
-        return;
+
+        const answer = await geminiService.answerQuery(text, tasks);
+
+        await slackService.updateMessage(
+          channel,
+          streamResult.ts,
+          answer
+        );
+        // Continue to next extraction (don't return)
       }
-    }
 
-    // HANDLE UPDATE INTENT
-    if (geminiResponse.extraction.intent === "update_task" && geminiResponse.extraction.target_task_title) {
-      await slackService.updateMessage(
-        channel,
-        streamResult.ts,
-        `🔎 Searching for task "${geminiResponse.extraction.target_task_title}"...`
-      );
+      // HANDLE DELETE INTENT
+      else if (extraction.intent === "delete_task" && extraction.target_task_title) {
+        const deleteTerm = extraction.target_task_title;
 
-      const task = await notionService.findPageByTitle(geminiResponse.extraction.target_task_title);
-
-      if (task) {
-        // Reuse thread update logic (simulated)
-        // We trigger the update logic manually
         await slackService.updateMessage(
           channel,
           streamResult.ts,
-          `🔄 Found "${task.title}". Updating status...`
+          `🔎 Searching for tasks related to "${deleteTerm}" to remove...`
         );
 
-        // Analyze specific update action needed using the updateWithContext logic
-        // We reuse the updateWithContext but pass the full text as the "reply"
-        // and using the found task's details
-        const updateResult = await geminiService.updateWithContext(
-          task.thoughtSignature || "",
-          text,
-          {
-            title: task.title,
-            summary: task.summary,
-            status: task.status,
-          }
-        );
+        // Use search instead of single find to support "delete all from X"
+        const tasksToDelete = await notionService.searchTasks(deleteTerm);
 
-        // Apply updates to Notion
-        if (updateResult.action === "completed") {
-          await notionService.updatePageStatus(task.pageId, "Done");
+        if (tasksToDelete.length > 0) {
           await slackService.updateMessage(
             channel,
             streamResult.ts,
-            `✅ Updated "${task.title}" to Done!`
+            `🗑️ Found ${tasksToDelete.length} task(s). Archiving now...`
           );
-        } else if (updateResult.action === "in_progress") {
-          await notionService.updatePageStatus(task.pageId, "In Progress");
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `🚀 Updated "${task.title}" to In Progress!`
-          );
-        } else if (updateResult.action === "detail") {
-          const note = updateResult.updates?.note || text;
-          await notionService.appendNote(task.pageId, note);
-          await slackService.updateMessage(
-            channel,
-            streamResult.ts,
-            `📝 Added note to "${task.title}"`
-          );
-        } else if (updateResult.action === "rescheduled") {
-          const newDueDate = updateResult.updates?.due_date;
-          if (newDueDate) {
-            await notionService.updateDueDate(task.pageId, newDueDate);
-            await slackService.updateMessage(
-              channel,
-              streamResult.ts,
-              `📅 Rescheduled "${task.title}" to ${newDueDate}`
-            );
+
+          // Perform batch archiving
+          for (const task of tasksToDelete) {
+            await notionService.archivePage(task.pageId);
           }
+
+          await slackService.updateMessage(
+            channel,
+            streamResult.ts,
+            `✅ Successfully removed ${tasksToDelete.length} task(s) related to "${deleteTerm}" from your Second Brain.`
+          );
         } else {
           await slackService.updateMessage(
             channel,
             streamResult.ts,
-            `👌 Acknowledged update for "${task.title}"`
+            `⚠️ Could not find any tasks matching "${deleteTerm}" to delete.`
           );
         }
+      }
 
-        return;
-      } else {
-        // Task not found - Fallback to creating new?
-        // Let's inform the user and ask them to be specific? 
-        // Or for now, just silently fall through to create a new task but warn them?
-        await slackService.sendMessage(
+      // HANDLE UPDATE INTENT
+      else if (extraction.intent === "update_task" && extraction.target_task_title) {
+        await slackService.updateMessage(
           channel,
-          `⚠️ Could not find task "${geminiResponse.extraction.target_task_title}". Creating a new task instead...`,
+          streamResult.ts,
+          `🔎 Searching for task "${extraction.target_task_title}"...`
+        );
+
+        const task = await notionService.findPageByTitle(extraction.target_task_title);
+
+        if (task) {
+          await slackService.updateMessage(
+            channel,
+            streamResult.ts,
+            `🔄 Found "${task.title}". Updating status...`
+          );
+
+          const updateResult = await geminiService.updateWithContext(
+            task.thoughtSignature || "",
+            text,
+            {
+              title: task.title,
+              summary: task.summary,
+              status: task.status,
+            }
+          );
+
+          // Apply updates to Notion
+          if (updateResult.action === "completed") {
+            await notionService.updatePageStatus(task.pageId, "Done");
+            await slackService.updateMessage(
+              channel,
+              streamResult.ts,
+              `✅ Updated "${task.title}" to Done!`
+            );
+          } else if (updateResult.action === "in_progress") {
+            await notionService.updatePageStatus(task.pageId, "In Progress");
+            await slackService.updateMessage(
+              channel,
+              streamResult.ts,
+              `🚀 Updated "${task.title}" to In Progress!`
+            );
+          } else if (updateResult.action === "detail") {
+            const note = updateResult.updates?.note || text;
+            await notionService.appendNote(task.pageId, note);
+            await slackService.updateMessage(
+              channel,
+              streamResult.ts,
+              `📝 Added note to "${task.title}"`
+            );
+          } else if (updateResult.action === "rescheduled") {
+            const newDueDate = updateResult.updates?.due_date;
+            if (newDueDate) {
+              await notionService.updateDueDate(task.pageId, newDueDate);
+              await slackService.updateMessage(
+                channel,
+                streamResult.ts,
+                `📅 Rescheduled "${task.title}" to ${newDueDate}`
+              );
+            }
+          } else {
+            await slackService.updateMessage(
+              channel,
+              streamResult.ts,
+              `👌 Acknowledged update for "${task.title}"`
+            );
+          }
+        } else {
+          await slackService.sendMessage(
+            channel,
+            `⚠️ Could not find task "${extraction.target_task_title}" for updating.`,
+            ts
+          );
+        }
+      }
+
+      // HANDLE NEW TASK CREATION (Default)
+      else if (extraction.intent === "new_task") {
+        await slackService.updateMessage(
+          channel,
+          streamResult.ts,
+          `💾 Saving "${extraction.title}" to Notion...`
+        );
+
+        const { pageId, url } = await notionService.createPageFromThought(
+          extraction,
+          geminiResponse.thought_signature,
           ts
         );
-        // Continue to create new task logic...
+
+        console.log(`Successfully created Notion page: ${pageId}`);
+
+        await slackService.sendNotionLink(channel, ts, url, extraction.title);
       }
     }
-
-    // HANDLE NEW TASK CREATION (Default)
-    // Update message to show progress
-    await slackService.updateMessage(
-      channel,
-      streamResult.ts,
-      "💾 Saving to Notion..."
-    );
-
-    // Create Notion page
-    const { pageId, url } = await notionService.createPageFromThought(
-      geminiResponse.extraction,
-      geminiResponse.thought_signature,
-      ts
-    );
-
-    console.log(`Successfully created Notion page: ${pageId}`);
-
-    // Send confirmation with Notion link
-    await slackService.sendNotionLink(channel, ts, url, geminiResponse.extraction.title);
 
   } catch (error) {
     console.error("Capture handler error:", error);
