@@ -4,7 +4,6 @@ import type {
   ThinkingLevel,
   GeminiResponse,
   GeminiUpdateResult,
-  ThoughtExtraction,
 } from "../types/index.js";
 
 export class GeminiService {
