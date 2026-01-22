@@ -13,10 +13,6 @@
             "schedule": "0 1 * * *"
         },
         {
-            "path": "/api/cron/midday",
-            "schedule": "30 6 * * *"
-        },
-        {
             "path": "/api/cron/nightly",
             "schedule": "0 14 * * *"
         }

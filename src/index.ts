@@ -13,8 +13,23 @@ export async function initApp() {
     const app = slackService.getApp();
 
     // Handle DMs and mentions
-    app.event("app_mention", async ({ event }) => {
+    app.event("app_mention", async ({ event, say }) => {
       console.log("DEBUG: app_mention event:", JSON.stringify(event, null, 2));
+
+      const text = event.text.trim();
+
+      // 🧪 TESTING TRIGGERS (Accessible via mention)
+      if (text.includes("test morning")) {
+        await say("🚀 Triggering Morning Briefing manually...");
+        await import("./handlers/briefings.js").then(m => m.sendMorningBriefing());
+        return;
+      }
+      if (text.includes("test nightly")) {
+        await say("🚀 Triggering Nightly Review manually...");
+        await import("./handlers/briefings.js").then(m => m.sendNightlyReview());
+        return;
+      }
+
       // If this mention is inside a thread, treat it as an update, not a new capture
       if (event.thread_ts) {
         await handleThreadUpdate({
@@ -47,20 +62,17 @@ export async function initApp() {
         return;
       }
 
-      // Skip messages without text (e.g. only attachments)
-      if (!(message as any).text) {
-        return;
-      }
+      const msg = message as any;
+      if (!msg.text) return;
+      const text = msg.text.trim();
 
-      // 🧪 TESTING TRIGGERS (Easy Way)
-      // Just DM the bot: "test morning" or "test nightly"
-      if ((message as any).text === "test morning") {
+      // 🧪 TESTING TRIGGERS (Accessible via DM)
+      if (text === "test morning") {
         await say("🚀 Triggering Morning Briefing manually...");
         await import("./handlers/briefings.js").then(m => m.sendMorningBriefing());
         return;
       }
-
-      if ((message as any).text === "test nightly") {
+      if (text === "test nightly") {
         await say("🚀 Triggering Nightly Review manually...");
         await import("./handlers/briefings.js").then(m => m.sendNightlyReview());
         return;
