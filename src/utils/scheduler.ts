@@ -27,6 +27,22 @@ export function setupScheduler(): void {
     }
   );
 
+  // Midday briefing at 13:30
+  cron.schedule(
+    "30 13 * * *",
+    async () => {
+      console.log(`[${new Date().toISOString()}] Running midday briefing...`);
+      try {
+        await sendMorningBriefing();
+      } catch (error) {
+        console.error("Scheduled midday briefing failed:", error);
+      }
+    },
+    {
+      timezone,
+    }
+  );
+
   // Nightly review at 21:00 (9 PM)
   cron.schedule(
     "0 21 * * *",
@@ -45,5 +61,6 @@ export function setupScheduler(): void {
 
   console.log(`Scheduler configured for timezone: ${timezone}`);
   console.log("Morning briefing: 08:00");
+  console.log("Midday briefing: 13:30");
   console.log("Nightly review: 21:00");
 }
